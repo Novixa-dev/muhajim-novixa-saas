@@ -107,11 +107,19 @@ export function App() {
       const defaultScaleW = Math.round(w * 0.5);
       const defaultScaleH = Math.round(h * 0.5);
 
+      let defaultFormat: 'image/webp' | 'image/jpeg' | 'image/png' = 'image/webp';
+      const fileType = firstFile.type.toLowerCase();
+      if (fileType === 'image/png') defaultFormat = 'image/png';
+      else if (fileType === 'image/jpeg' || fileType === 'image/jpg') defaultFormat = 'image/jpeg';
+      else if (fileType === 'image/webp') defaultFormat = 'image/webp';
+      else if (fileType === 'image/avif') defaultFormat = 'image/webp';
+      else if (fileType === 'image/gif') defaultFormat = 'image/png';
       setResizeOptions((prev) => ({
         ...prev,
         width: defaultScaleW,
         height: defaultScaleH,
         percentage: 50,
+        format: defaultFormat,
       }));
 
       URL.revokeObjectURL(objectUrl);

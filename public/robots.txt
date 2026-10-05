@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://muhajim.dev/sitemap.xml
+Sitemap: https://muhajim-novixa-saas.vercel.app/sitemap.xml
