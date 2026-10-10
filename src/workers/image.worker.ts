@@ -10,6 +10,8 @@ export interface WorkerInputMessage {
   fitMode?: 'stretch' | 'contain' | 'cover';
   backgroundColor?: string;
   maxSizeKB?: number; // Target max file size (e.g. 100 for < 100KB passport documents)
+  enhance?: boolean;
+  enhanceStrength?: number;
 }
 
 export interface WorkerOutputMessage {
@@ -35,6 +37,8 @@ self.onmessage = async (e: MessageEvent<WorkerInputMessage>) => {
     fitMode = 'stretch',
     backgroundColor = '#FFFFFF',
     maxSizeKB,
+    enhance,
+    enhanceStrength,
   } = e.data;
 
   try {
@@ -74,7 +78,35 @@ self.onmessage = async (e: MessageEvent<WorkerInputMessage>) => {
       const renderH = srcH * scale;
       const offsetX = (targetWidth - renderW) / 2;
       const offsetY = (targetHeight - renderH) / 2;
-      ctx.drawImage(imageBitmap, offsetX, offsetY, renderW, renderH);
+          ctx.drawImage(imageBitmap, offsetX, offsetY, renderW, renderH);
+    // Apply light enhancement if requested
+    if (enhance && (enhanceStrength ?? 0.3) > 0) {
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      const strength = enhanceStrength ?? 0.3;
+      const w = canvas.width, h = canvas.height;
+      // Simple unsharp mask: 3x3
+      const kernel = [0, -strength/4, 0, -strength/4, 1+strength, -strength/4, 0, -strength/4, 0];
+      const weights = kernel;
+      const side = 3;
+      const half = Math.floor(side/2);
+      const src = new Uint8ClampedArray(data);
+      for (let y=half; y<h-half; y++) {
+        for (let x=half; x<w-half; x++) {
+          let r=0,g=0,b=0,a=data[(y*w+x)*4+3];
+          for (let ky=0; ky<side; ky++) {
+            for (let kx=0; kx<side; kx++) {
+              const idx = ((y+ky-half)*w + (x+kx-half))*4;
+              const wgt = weights[ky*side+kx];
+              r += src[idx]*wgt; g += src[idx+1]*wgt; b += src[idx+2]*wgt;
+            }
+          }
+          const didx = (y*w+x)*4;
+          data[didx]=Math.min(255,Math.max(0,r)); data[didx+1]=Math.min(255,Math.max(0,g)); data[didx+2]=Math.min(255,Math.max(0,b)); data[didx+3]=a;
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
     } else if (fitMode === 'contain') {
       // Scale and letterbox inside canvas
       const scale = Math.min(targetWidth / srcW, targetHeight / srcH);
@@ -82,7 +114,35 @@ self.onmessage = async (e: MessageEvent<WorkerInputMessage>) => {
       const renderH = srcH * scale;
       const offsetX = (targetWidth - renderW) / 2;
       const offsetY = (targetHeight - renderH) / 2;
-      ctx.drawImage(imageBitmap, offsetX, offsetY, renderW, renderH);
+          ctx.drawImage(imageBitmap, offsetX, offsetY, renderW, renderH);
+    // Apply light enhancement if requested
+    if (enhance && (enhanceStrength ?? 0.3) > 0) {
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      const strength = enhanceStrength ?? 0.3;
+      const w = canvas.width, h = canvas.height;
+      // Simple unsharp mask: 3x3
+      const kernel = [0, -strength/4, 0, -strength/4, 1+strength, -strength/4, 0, -strength/4, 0];
+      const weights = kernel;
+      const side = 3;
+      const half = Math.floor(side/2);
+      const src = new Uint8ClampedArray(data);
+      for (let y=half; y<h-half; y++) {
+        for (let x=half; x<w-half; x++) {
+          let r=0,g=0,b=0,a=data[(y*w+x)*4+3];
+          for (let ky=0; ky<side; ky++) {
+            for (let kx=0; kx<side; kx++) {
+              const idx = ((y+ky-half)*w + (x+kx-half))*4;
+              const wgt = weights[ky*side+kx];
+              r += src[idx]*wgt; g += src[idx+1]*wgt; b += src[idx+2]*wgt;
+            }
+          }
+          const didx = (y*w+x)*4;
+          data[didx]=Math.min(255,Math.max(0,r)); data[didx+1]=Math.min(255,Math.max(0,g)); data[didx+2]=Math.min(255,Math.max(0,b)); data[didx+3]=a;
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
     } else {
       // Direct stretch
       ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
