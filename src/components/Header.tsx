@@ -67,7 +67,7 @@ export const Header: React.FC<HeaderProps> = ({ currentLang, onSelectLang, t }) 
             </button>
 
             {isLangOpen && (
-              <div className="absolute top-full mt-2 left-0 right-0 sm:left-auto sm:right-0 w-72 glass-panel rounded-2xl p-2 shadow-2xl z-50 border border-slate-700/60">
+              <div className="absolute top-full mt-2 end-0 w-72 max-w-[calc(100vw-2rem)] glass-panel rounded-2xl p-2 shadow-2xl z-50 border border-slate-700/60">
                 <div className="p-2 border-b border-slate-800 mb-2">
                   <div className="relative">
                     <Globe className="w-4 h-4 absolute top-2.5 left-3 text-slate-400" />

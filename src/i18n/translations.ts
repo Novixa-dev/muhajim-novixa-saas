@@ -41,7 +41,60 @@ export interface TranslationKeys {
   footerRights: string;
   canvaAffiliate: string;
   novixaDevLink: string;
+  // Optional keys (default to English via the fallback merge in getTranslation)
+  passportTab?: string;
+  passportTitle?: string;
+  bgColorLabel?: string;
+  bgWhite?: string;
+  bgLightGray?: string;
+  bgLightBlue?: string;
+  presetEcommerce?: string;
+  presetFacebookCover?: string;
+  passportUS?: string;
+  passportUSSub?: string;
+  passportSchengen?: string;
+  passportSchengenSub?: string;
+  passportArab?: string;
+  passportArabSub?: string;
+  passportUnder100?: string;
+  passportUnder200?: string;
+  enhanceLabel?: string;
+  enhanceHint?: string;
+  enhanceStrengthLabel?: string;
+  changeImagesBtn?: string;
+  batchProcessingText?: string;
+  selectedCountText?: string;
+  totalLabel?: string;
+  loadErrorText?: string;
+  processBatchBtn?: string;
+  // Result preview keys
+  previewLabel?: string;
+  compareSliderLabel?: string;
+  livePreviewLabel?: string;
+  chooseImagePreview?: string;
+  batchZipBtn?: string;
+  zippingText?: string;
+  readyToDownload?: string;
+  originalFilesLabel?: string;
+  batchTotalLabel?: string;
+  // Clarity & Enhancement Studio keys
+  clarityStudioTitle?: string;
+  claritySmart?: string;
+  claritySmartDesc?: string;
+  clarityDoc?: string;
+  clarityDocDesc?: string;
+  clarityPhoto?: string;
+  clarityPhotoDesc?: string;
+  clarityCustom?: string;
+  clarityContrast?: string;
+  clarityBrightness?: string;
+  clarityDenoise?: string;
+  formatSvgDesc?: string;
+  formatAvifDesc?: string;
+  formatIcoDesc?: string;
+  formatPdfDesc?: string;
 }
+
 
 export const TRANSLATIONS: Record<string, TranslationKeys> = {
   ar: {
@@ -87,6 +140,55 @@ export const TRANSLATIONS: Record<string, TranslationKeys> = {
     footerRights: 'جميع الحقوق محفوظة © 2026 Novixa Digital Impact Initiative.',
     canvaAffiliate: 'هل تحتاج إلى تصميم هويات وشعارات احترافية؟ جرب Canva Pro',
     novixaDevLink: 'تريد حلول برمجة ومواقع مخصصة لشركتك؟ تواصل مع فريق Novixa',
+    passportTab: 'الهوية والجوازات (Gov)',
+    passportTitle: 'مقاسات الهوية الرسمية وجوازات السفر والفيزا (DPI 300)',
+    bgColorLabel: 'لون خلفية الهوية:',
+    bgWhite: 'أبيض',
+    bgLightGray: 'رمادي فاتح',
+    bgLightBlue: 'أزرق فاتح',
+    presetEcommerce: 'متاجر سلة وزد وشوبيفاي',
+    presetFacebookCover: 'غلاف فيسبوك / لينكدإن',
+    passportUS: 'جواز سفر أمريكي / دولي',
+    passportUSSub: '2×2 إنش (600×600 px)',
+    passportSchengen: 'فيزا الشنغن / أوروبا والخليج',
+    passportSchengenSub: '35×45 ملم (413×531 px)',
+    passportArab: 'الهوية والوثائق العربية',
+    passportArabSub: '4×6 سم (472×709 px)',
+    passportUnder100: 'مضمونة أقل من 100KB',
+    passportUnder200: 'أقل من 200KB تلقائياً',
+    enhanceLabel: 'تحسين وضوح الصورة (Enhance)',
+    enhanceHint: 'يُبرز التفاصيل ويجعل الصور غير الواضحة أكثر حدّة وقراءة',
+    enhanceStrengthLabel: 'مستوى التحسين',
+    changeImagesBtn: 'تغيير الصور',
+    batchProcessingText: 'جاري معالجة الصور محلياً داخل المتصفح...',
+    selectedCountText: 'تم اختيار {count} صور للمعالجة الجماعية',
+    totalLabel: 'إجمالي',
+    loadErrorText: 'تعذّر قراءة ملف الصورة. تأكد من أن الصيغة مدعومة.',
+    processBatchBtn: 'معالجة وتجهيز جميع الصور ({count}) الآن ➔',
+    previewLabel: 'معاينة',
+    compareSliderLabel: 'مقارنة تفاعلية (Slider)',
+    livePreviewLabel: 'المعاينة المباشرة',
+    chooseImagePreview: 'اختر صورة لمعاينتها وتدقيق جودتها:',
+    batchZipBtn: 'تحميل الكل كملف ZIP ({count})',
+    zippingText: 'جاري ضغط الملفات...',
+    readyToDownload: 'جاهزة للتحميل بنقرة واحدة',
+    originalFilesLabel: 'ملفات أصلية',
+    batchTotalLabel: 'إجمالي',
+    clarityStudioTitle: 'استوديو توضيح وتحسين جودة الصورة (AI/HD Clarity)',
+    claritySmart: 'توضيح تلقائي ذكي',
+    claritySmartDesc: 'يضبط التباين والحدة وإبراز التفاصيل تلقائياً',
+    clarityDoc: 'توضيح المستندات والخطوط',
+    clarityDocDesc: 'تغميق النصوص وتبييض الخلفية للأوراق والوثائق غير الواضحة',
+    clarityPhoto: 'توضيح الوجوه والبورتريه',
+    clarityPhotoDesc: 'تنقية الشوائب وتوضيح ملامح الوجه والتفاصيل بدقة',
+    clarityCustom: 'تحكم يدوي مخصص',
+    clarityContrast: 'زيادة التباين (Contrast)',
+    clarityBrightness: 'تعديل الإضاءة (Brightness)',
+    clarityDenoise: 'تنقية الحبيبات والشوائب (Denoise)',
+    formatSvgDesc: 'صيغة متجهية قابلة للتكبير لأي حجم دون بكسلة',
+    formatAvifDesc: 'ضغط الجيل القادم فائق الصغر بجودة استثنائية',
+    formatIcoDesc: 'أيقونة مواقع وبرمجيات مفضلة (Favicon)',
+    formatPdfDesc: 'مستند PDF رسمي عالي الدقة جاهز للطباعة والجهات الرسمية',
   },
   en: {
     appName: 'Muhajim',
@@ -131,6 +233,55 @@ export const TRANSLATIONS: Record<string, TranslationKeys> = {
     footerRights: 'All rights reserved © 2026 Novixa Digital Impact Initiative.',
     canvaAffiliate: 'Need complete brand graphics and banners? Try Canva Pro',
     novixaDevLink: 'Need custom software engineering or enterprise web platforms? Contact Novixa',
+    passportTab: 'ID & Passport (Gov)',
+    passportTitle: 'Official ID, Passport & Visa Sizes (300 DPI)',
+    bgColorLabel: 'ID background color:',
+    bgWhite: 'White',
+    bgLightGray: 'Light gray',
+    bgLightBlue: 'Light blue',
+    presetEcommerce: 'Salla, Zid & Shopify stores',
+    presetFacebookCover: 'Facebook / LinkedIn cover',
+    passportUS: 'US / International passport',
+    passportUSSub: '2×2 inch (600×600 px)',
+    passportSchengen: 'Schengen / Europe & Gulf visa',
+    passportSchengenSub: '35×45 mm (413×531 px)',
+    passportArab: 'Arab ID & documents',
+    passportArabSub: '4×6 cm (472×709 px)',
+    passportUnder100: 'Guaranteed under 100KB',
+    passportUnder200: 'Automatically under 200KB',
+    enhanceLabel: 'Enhance clarity',
+    enhanceHint: 'Sharpens details so blurry images look clearer and more readable',
+    enhanceStrengthLabel: 'Enhancement strength',
+    changeImagesBtn: 'Change images',
+    batchProcessingText: 'Processing images locally in your browser...',
+    selectedCountText: '{count} images selected for batch processing',
+    totalLabel: 'Total',
+    loadErrorText: 'Could not read the image file. Please make sure the format is supported.',
+    processBatchBtn: 'Process & Prepare all images ({count}) now ➔',
+    previewLabel: 'Preview',
+    compareSliderLabel: 'Interactive compare (Slider)',
+    livePreviewLabel: 'Live preview',
+    chooseImagePreview: 'Pick an image to preview and check its quality:',
+    batchZipBtn: 'Download all as ZIP ({count})',
+    zippingText: 'Zipping files...',
+    readyToDownload: 'Ready to download in one click',
+    originalFilesLabel: 'original files',
+    batchTotalLabel: 'Total',
+    clarityStudioTitle: 'Image Clarity & Enhancement Studio',
+    claritySmart: 'Smart Auto Clarity',
+    claritySmartDesc: 'Auto-adjusts contrast, sharpness & hidden details',
+    clarityDoc: 'Documents & Text Booster',
+    clarityDocDesc: 'Darkens text & whitens background for scans & IDs',
+    clarityPhoto: 'Portrait & Photo Clarity',
+    clarityPhotoDesc: 'Cleans grain while boosting natural facial contours',
+    clarityCustom: 'Custom Pro Adjust',
+    clarityContrast: 'Contrast Boost',
+    clarityBrightness: 'Brightness Adjust',
+    clarityDenoise: 'Clean digital noise & grain (Denoise)',
+    formatSvgDesc: 'Scalable vector container with exact viewBox',
+    formatAvifDesc: 'Next-gen ultra compression with pristine quality',
+    formatIcoDesc: 'Standard favicon icon for web and desktop apps',
+    formatPdfDesc: 'Official print-ready PDF document for submission',
   },
   es: {
     appName: 'Muhajim',
@@ -356,13 +507,16 @@ export const TRANSLATIONS: Record<string, TranslationKeys> = {
 
 // Fallback generator for other languages to ensure full 20-language support
 export function getTranslation(langCode: string): TranslationKeys {
-  if (TRANSLATIONS[langCode]) {
-    return TRANSLATIONS[langCode];
-  }
-  
-  // Return English fallback with localized app title if available
+  const normalized = (langCode || 'en').split('-')[0].toLowerCase();
+
+  // Merge English defaults so any optional/new key is always present,
+  // then overlay the selected language's translations when available.
   return {
     ...TRANSLATIONS.en,
-    appName: langCode === 'ur' || langCode === 'fa' ? 'مُحجِّم' : 'Muhajim',
+    ...(TRANSLATIONS[normalized] || {}),
+    appName:
+      normalized === 'ur' || normalized === 'fa' || normalized === 'ar'
+        ? 'مُحجِّم'
+        : TRANSLATIONS[normalized]?.appName || 'Muhajim',
   };
 }

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Download, RefreshCw, Sparkles, ExternalLink, HardDrive, Archive, Eye } from 'lucide-react';
+import { Download, RefreshCw, Sparkles, ExternalLink, HardDrive, Archive, Eye, FileText } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import JSZip from 'jszip';
 import { TranslationKeys } from '../i18n/translations';
+import { formatExtension, OutputFormat } from '../lib/formats';
 import { ComparisonSlider } from './ComparisonSlider';
 
 export interface ProcessedItem {
@@ -57,6 +58,9 @@ export const ResultPreview: React.FC<ResultPreviewProps> = ({ items, onReset, t 
     };
   }, [originalObjectUrl]);
 
+  const extensionFor = (item: ProcessedItem) =>
+    formatExtension((item.blob.type as OutputFormat) || 'image/webp');
+
   const handleDownloadSingle = (item: ProcessedItem) => {
     confetti({
       particleCount: 70,
@@ -64,7 +68,7 @@ export const ResultPreview: React.FC<ResultPreviewProps> = ({ items, onReset, t 
       origin: { y: 0.6 },
     });
 
-    const extension = item.blob.type.split('/')[1] || 'webp';
+    const extension = extensionFor(item);
     const link = document.createElement('a');
     link.href = item.dataUrl;
     link.download = `resized_${item.originalFile.name.split('.')[0]}.${extension}`;
@@ -78,7 +82,7 @@ export const ResultPreview: React.FC<ResultPreviewProps> = ({ items, onReset, t 
     try {
       const zip = new JSZip();
       items.forEach((item, idx) => {
-        const ext = item.blob.type.split('/')[1] || 'webp';
+        const ext = extensionFor(item);
         const cleanName = item.originalFile.name.split('.')[0];
         zip.file(`muhajim_${idx + 1}_${cleanName}.${ext}`, item.blob);
       });
@@ -114,7 +118,7 @@ export const ResultPreview: React.FC<ResultPreviewProps> = ({ items, onReset, t 
         
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-900/40 border border-cyan-700/50 text-cyan-300 text-xs font-bold">
           <Sparkles className="w-4 h-4 text-cyan-400" />
-          <span>{t.savingsLabel}: {savingsPercent}% {items.length > 1 && `(إجمالي ${items.length} صور)`}</span>
+          <span>{t.savingsLabel}: {savingsPercent}% {items.length > 1 && `(${t.batchTotalLabel || 'إجمالي'} ${items.length})`}</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center max-w-xl mx-auto">
@@ -123,7 +127,7 @@ export const ResultPreview: React.FC<ResultPreviewProps> = ({ items, onReset, t 
             <div className="text-xs text-slate-400 font-semibold mb-1">{t.originalSize}</div>
             <div className="text-xl font-bold font-mono text-slate-200">{formatBytes(totalOriginalSize)}</div>
             <div className="text-[11px] font-mono text-slate-500">
-              {items.length === 1 ? `${activeItem.originalWidth} × ${activeItem.originalHeight} px` : `${items.length} ملفات أصلية`}
+              {items.length === 1 ? `${activeItem.originalWidth} × ${activeItem.originalHeight} px` : `${items.length} ${t.originalFilesLabel || 'ملفات أصلية'}`}
             </div>
           </div>
 
@@ -132,7 +136,7 @@ export const ResultPreview: React.FC<ResultPreviewProps> = ({ items, onReset, t 
             <div className="text-xs text-cyan-300 font-semibold mb-1">{t.newSize}</div>
             <div className="text-xl font-bold font-mono text-cyan-400">{formatBytes(totalNewSize)}</div>
             <div className="text-[11px] font-mono text-cyan-300">
-              {items.length === 1 ? `${activeItem.width} × ${activeItem.height} px` : `جاهزة للتحميل بنقرة واحدة`}
+              {items.length === 1 ? `${activeItem.width} × ${activeItem.height} px` : (t.readyToDownload || 'جاهزة للتحميل بنقرة واحدة')}
             </div>
           </div>
         </div>
@@ -146,7 +150,7 @@ export const ResultPreview: React.FC<ResultPreviewProps> = ({ items, onReset, t 
               className="flex-1 gradient-button py-4 px-6 rounded-2xl font-bold text-slate-950 text-base flex items-center justify-center gap-2 shadow-xl shadow-cyan-500/20 disabled:opacity-50"
             >
               <Archive className="w-5 h-5" />
-              <span>{isZipping ? 'جاري ضغط الملفات...' : `تحميل الكل كملف ZIP (${items.length})`}</span>
+              <span>{isZipping ? (t.zippingText || 'جاري ضغط الملفات...') : (t.batchZipBtn || `تحميل الكل كملف ZIP (${items.length})`).replace('{count}', String(items.length))}</span>
             </button>
           ) : (
             <button
@@ -172,7 +176,7 @@ export const ResultPreview: React.FC<ResultPreviewProps> = ({ items, onReset, t 
       {/* Multi-item Thumbnail Selector (If Batch Mode) */}
       {items.length > 1 && (
         <div className="space-y-2">
-          <div className="text-xs font-bold text-slate-400">اختر صورة لمعاينتها وتدقيق جودتها:</div>
+          <div className="text-xs font-bold text-slate-400">{t.chooseImagePreview || 'اختر صورة لمعاينتها وتدقيق جودتها:'}</div>
           <div className="flex gap-2.5 overflow-x-auto pb-2 custom-scrollbar">
             {items.map((item, idx) => (
               <button
@@ -199,7 +203,7 @@ export const ResultPreview: React.FC<ResultPreviewProps> = ({ items, onReset, t 
         <div className="glass-panel rounded-3xl p-4 sm:p-6 border border-slate-800 space-y-4">
           <div className="flex justify-between items-center">
             <span className="text-xs font-bold text-slate-300 truncate max-w-xs">
-              معاينة: {activeItem.originalFile.name}
+              {t.previewLabel || 'معاينة'}: {activeItem.originalFile.name}
             </span>
 
             <div className="flex p-1 bg-slate-950 rounded-xl border border-slate-800 text-xs">
@@ -212,7 +216,7 @@ export const ResultPreview: React.FC<ResultPreviewProps> = ({ items, onReset, t 
                 }`}
               >
                 <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                <span>مقارنة تفاعلية (Slider)</span>
+                <span>{t.compareSliderLabel || 'مقارنة تفاعلية (Slider)'}</span>
               </button>
               <button
                 onClick={() => setViewMode('preview')}
@@ -223,13 +227,32 @@ export const ResultPreview: React.FC<ResultPreviewProps> = ({ items, onReset, t 
                 }`}
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span>المعاينة المباشرة</span>
+                <span>{t.livePreviewLabel || 'المعاينة المباشرة'}</span>
               </button>
             </div>
           </div>
 
           {/* View Container */}
-          {viewMode === 'slider' ? (
+          {activeItem.blob.type === 'application/pdf' ? (
+            <div className="w-full py-12 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col items-center justify-center p-6 text-center space-y-3">
+              <div className="w-16 h-16 rounded-2xl bg-rose-950/80 border border-rose-700/60 flex items-center justify-center text-rose-400 shadow-lg">
+                <FileText className="w-8 h-8" />
+              </div>
+              <div className="space-y-1">
+                <div className="text-base font-bold text-slate-100">مستند PDF رسمي جاهز للتحميل والطباعة</div>
+                <div className="text-xs font-mono text-slate-400">
+                  {activeItem.originalFile.name.split('.')[0]}.pdf • ({formatBytes(activeItem.blob.size)})
+                </div>
+              </div>
+              <button
+                onClick={() => handleDownloadSingle(activeItem)}
+                className="gradient-button py-2.5 px-6 rounded-xl font-bold text-slate-950 text-xs flex items-center gap-2 mt-2"
+              >
+                <Download className="w-4 h-4" />
+                <span>تحميل ملف الـ PDF الآن</span>
+              </button>
+            </div>
+          ) : viewMode === 'slider' ? (
             <ComparisonSlider
               originalUrl={originalObjectUrl}
               processedUrl={activeItem.dataUrl}

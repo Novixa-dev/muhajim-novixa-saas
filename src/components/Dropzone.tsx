@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { UploadCloud, Image as ImageIcon, ShieldAlert, Command, Layers } from 'lucide-react';
 import { TranslationKeys } from '../i18n/translations';
+import { INPUT_ACCEPT, SUPPORTED_INPUT_MIME } from '../lib/formats';
 
 interface DropzoneProps {
   onFilesSelected: (files: File[]) => void;
@@ -14,7 +15,12 @@ export const Dropzone: React.FC<DropzoneProps> = ({ onFilesSelected, t }) => {
     if (fileList && fileList.length > 0) {
       const validFiles: File[] = [];
       for (let i = 0; i < fileList.length; i++) {
-        if (fileList[i].type.startsWith('image/')) {
+        const type = (fileList[i].type || '').toLowerCase();
+        const name = fileList[i].name.toLowerCase();
+        const isSupported =
+          type.startsWith('image/') && SUPPORTED_INPUT_MIME.includes(type) ||
+          /\.(jpe?g|png|webp|gif|bmp|avif|svg)$/.test(name);
+        if (isSupported) {
           validFiles.push(fileList[i]);
         }
       }
@@ -73,7 +79,7 @@ export const Dropzone: React.FC<DropzoneProps> = ({ onFilesSelected, t }) => {
         <input
           type="file"
           multiple
-          accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+          accept={INPUT_ACCEPT}
           onChange={(e) => handleFileChange(e.target.files)}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
         />
@@ -113,12 +119,19 @@ export const Dropzone: React.FC<DropzoneProps> = ({ onFilesSelected, t }) => {
             </div>
           </div>
 
-          {/* Supported Formats Pills */}
-          <div className="pt-4 flex flex-wrap justify-center items-center gap-2 text-[11px] font-mono text-slate-500">
+          {/* Supported Formats & Feature Pills */}
+          <div className="pt-4 flex flex-wrap justify-center items-center gap-1.5 sm:gap-2 text-[11px] font-mono text-slate-400">
             <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700/50">PNG</span>
             <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700/50">JPG</span>
-            <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700/50">WEBP</span>
+            <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700/50 text-cyan-400 font-bold">WEBP</span>
+            <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700/50">SVG</span>
             <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700/50">AVIF</span>
+            <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700/50">ICO</span>
+            <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700/50">PDF</span>
+            <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700/50">BMP</span>
+            <span className="px-2 py-0.5 rounded bg-violet-950/80 border border-violet-700/60 text-violet-300 font-bold">
+              ✨ استوديو التوضيح
+            </span>
           </div>
 
         </div>

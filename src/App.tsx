@@ -7,24 +7,17 @@ import { SeoSection } from './components/SeoSection';
 import { Footer } from './components/Footer';
 import { AdBanner } from './components/AdBanner';
 import { InfoModal, ModalType } from './components/InfoModal';
-import { DEFAULT_LANGUAGE, LANGUAGES, Language } from './i18n/languages';
+import { DEFAULT_LANGUAGE, Language } from './i18n/languages';
 import { getTranslation } from './i18n/translations';
+import { detectInitialLanguage, persistLanguage } from './lib/language';
+import { defaultFormatForFile, isSvgFile } from './lib/formats';
 import { WorkerInputMessage, WorkerOutputMessage } from './workers/image.worker';
 import { AlertCircle, X, Loader2 } from 'lucide-react';
 
 export function App() {
-  const [currentLang, setCurrentLang] = useState<Language>(() => {
-    // Check URL query param ?lang=xx
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const langParam = params.get('lang');
-      if (langParam) {
-        const found = LANGUAGES.find((l) => l.code === langParam);
-        if (found) return found;
-      }
-    }
-    return DEFAULT_LANGUAGE;
-  });
+  const [currentLang, setCurrentLang] = useState<Language>(() =>
+    detectInitialLanguage(typeof window !== 'undefined' ? window.location.search : '')
+  );
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [originalWidth, setOriginalWidth] = useState<number>(0);
@@ -77,6 +70,7 @@ export function App() {
   useEffect(() => {
     document.documentElement.setAttribute('dir', currentLang.dir);
     document.documentElement.setAttribute('lang', currentLang.code);
+    persistLanguage(currentLang.code);
 
     const url = new URL(window.location.href);
     if (currentLang.code === DEFAULT_LANGUAGE.code) {
@@ -107,13 +101,9 @@ export function App() {
       const defaultScaleW = Math.round(w * 0.5);
       const defaultScaleH = Math.round(h * 0.5);
 
-      let defaultFormat: 'image/webp' | 'image/jpeg' | 'image/png' = 'image/webp';
-      const fileType = firstFile.type.toLowerCase();
-      if (fileType === 'image/png') defaultFormat = 'image/png';
-      else if (fileType === 'image/jpeg' || fileType === 'image/jpg') defaultFormat = 'image/jpeg';
-      else if (fileType === 'image/webp') defaultFormat = 'image/webp';
-      else if (fileType === 'image/avif') defaultFormat = 'image/webp';
-      else if (fileType === 'image/gif') defaultFormat = 'image/png';
+      // Default format = the uploaded image's own format (user can change it)
+      const defaultFormat = defaultFormatForFile(firstFile);
+
       setResizeOptions((prev) => ({
         ...prev,
         width: defaultScaleW,
@@ -126,11 +116,43 @@ export function App() {
     };
 
     img.onerror = () => {
-      setErrorMessage('Failed to load image file. Please ensure it is a valid format.');
+      setErrorMessage(t.loadErrorText || 'Failed to load image file. Please ensure it is a valid format.');
       URL.revokeObjectURL(objectUrl);
     };
 
     img.src = objectUrl;
+  };
+
+  // Rasterize SVG files into PNG blobs (SVG can't be decoded by createImageBitmap)
+  const rasterizeSvg = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const size = 1024;
+        const scale = Math.min(1, size / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          URL.revokeObjectURL(url);
+          reject(new Error('SVG rasterization failed'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('SVG rasterization failed'));
+        }, 'image/png');
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Could not load SVG image'));
+      };
+      img.src = url;
+    });
   };
 
   // Helper to process one file through the Web Worker via Promise
@@ -168,6 +190,12 @@ export function App() {
           fitMode: resizeOptions.fitMode,
           backgroundColor: resizeOptions.backgroundColor,
           maxSizeKB: resizeOptions.maxSizeKB,
+          enhance: resizeOptions.enhance,
+          enhanceStrength: resizeOptions.enhanceStrength,
+          enhanceMode: resizeOptions.enhanceMode,
+          contrastBoost: resizeOptions.contrastBoost,
+          brightnessAdjust: resizeOptions.brightnessAdjust,
+          denoise: resizeOptions.denoise,
         };
 
         pendingRequests.current.set(msgId, (out: WorkerOutputMessage) => {
@@ -212,7 +240,17 @@ export function App() {
     try {
       for (let i = 0; i < selectedFiles.length; i++) {
         setBatchProgress({ current: i + 1, total: selectedFiles.length });
-        const item = await processOneFile(selectedFiles[i]);
+        let file = selectedFiles[i];
+
+        // Rasterize SVG files to PNG so the worker can process them
+        if (isSvgFile(file)) {
+          const pngBlob = await rasterizeSvg(file);
+          file = new File([pngBlob], file.name.replace(/\.svg$/i, '.png'), {
+            type: 'image/png',
+          });
+        }
+
+        const item = await processOneFile(file);
         results.push(item);
       }
 
@@ -296,10 +334,10 @@ export function App() {
                   <div className="text-sm font-bold text-slate-200 truncate max-w-xs sm:max-w-md">
                     {selectedFiles.length === 1
                       ? selectedFiles[0].name
-                      : `تم اختيار ${selectedFiles.length} صور للمعالجة الجماعية`}
+                      : (t.selectedCountText || 'تم اختيار {count} صور للمعالجة الجماعية').replace('{count}', String(selectedFiles.length))}
                   </div>
                   <div className="text-xs font-mono text-slate-400">
-                    {(selectedFiles.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(2)} MB إجمالي • {originalWidth} × {originalHeight} px
+                    {(selectedFiles.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(2)} MB {t.totalLabel || 'إجمالي'} • {originalWidth} × {originalHeight} px
                   </div>
                 </div>
               </div>
@@ -308,7 +346,7 @@ export function App() {
                 onClick={handleReset}
                 className="text-xs text-rose-400 hover:text-rose-300 px-3 py-1.5 rounded-lg bg-rose-950/40 border border-rose-800/40 font-semibold"
               >
-                تغيير الصور
+                {t.changeImagesBtn || 'تغيير الصور'}
               </button>
             </div>
 
@@ -318,7 +356,7 @@ export function App() {
                 <div className="flex justify-between text-xs font-bold text-cyan-300">
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                    <span>جاري معالجة الصور محلياً داخل المتصفح...</span>
+                    <span>{t.batchProcessingText || 'جاري معالجة الصور محلياً داخل المتصفح...'}</span>
                   </span>
                   <span className="font-mono">
                     {batchProgress.current} / {batchProgress.total}
