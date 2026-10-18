@@ -1,5 +1,10 @@
 name: Deploy to VPS
 
+# The VPS also runs mailcow and other sites behind mailcow's nginx. This
+# workflow only uploads a release bundle and runs deploy/deploy.sh, which
+# touches nothing but muhajim.conf and the muhajim/ folder in mailcow's nginx
+# config and rolls back if `nginx -t` fails.
+
 on:
   push:
     branches: [main]
@@ -10,20 +15,20 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DOMAIN: muhajim.novixa.dev
-  APP_DIR: /var/www/muhajim.novixa.dev
+  RELEASE_ID: ${{ github.run_number }}-${{ github.sha }}
+  RUN_DIR: /tmp/muhajim-release-${{ github.run_id }}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -32,74 +37,14 @@ jobs:
       - name: Build
         run: npm run build
 
-      # One-time server setup (idempotent): nginx, web root, site config.
-      - name: Prepare server
-        uses: appleboy/ssh-action@v1.2.0
-        env:
-          DOMAIN: ${{ env.DOMAIN }}
-          APP_DIR: ${{ env.APP_DIR }}
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: 22
-          envs: DOMAIN,APP_DIR
-          script: |
-            set -e
-            if ! command -v nginx >/dev/null 2>&1; then
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update -y
-              apt-get install -y nginx rsync certbot python3-certbot-nginx
-              systemctl enable --now nginx
-            fi
-            command -v rsync >/dev/null 2>&1 || apt-get install -y rsync
+      - name: Package release
+        run: |
+          mkdir -p bundle
+          cp -R dist bundle/site
+          cp -R deploy bundle/deploy
+          tar -czf muhajim-release.tar.gz -C bundle .
 
-            mkdir -p "$APP_DIR/html" "$APP_DIR/incoming"
-            rm -rf "$APP_DIR/incoming"/*
-
-            CONF="/etc/nginx/sites-available/$DOMAIN"
-            # Only written once so certbot's later HTTPS edits are preserved.
-            if [ ! -f "$CONF" ]; then
-              cat > "$CONF" <<NGINX
-            server {
-                listen 80;
-                listen [::]:80;
-                server_name $DOMAIN;
-
-                root $APP_DIR/html;
-                index index.html;
-
-                add_header X-Content-Type-Options "nosniff" always;
-                add_header X-Frame-Options "DENY" always;
-                add_header X-XSS-Protection "1; mode=block" always;
-                add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-
-                gzip on;
-                gzip_types text/plain text/css application/javascript application/json image/svg+xml application/xml;
-
-                location /assets/ {
-                    expires 1y;
-                    add_header Cache-Control "public, max-age=31536000, immutable";
-                    try_files \$uri =404;
-                }
-
-                location = /index.html {
-                    add_header Cache-Control "no-cache";
-                    add_header X-Content-Type-Options "nosniff" always;
-                    add_header X-Frame-Options "DENY" always;
-                    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-                }
-
-                location / {
-                    try_files \$uri \$uri.html \$uri/ /index.html;
-                }
-            }
-            NGINX
-              ln -sf "$CONF" "/etc/nginx/sites-enabled/$DOMAIN"
-            fi
-
-      - name: Upload build
+      - name: Upload release
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -107,33 +52,24 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: 22
-          source: dist
-          target: ${{ env.APP_DIR }}/incoming
-          strip_components: 1
+          source: muhajim-release.tar.gz
+          target: ${{ env.RUN_DIR }}
 
       - name: Activate release
         uses: appleboy/ssh-action@v1.2.0
         env:
-          DOMAIN: ${{ env.DOMAIN }}
-          APP_DIR: ${{ env.APP_DIR }}
+          RELEASE_ID: ${{ env.RELEASE_ID }}
+          RUN_DIR: ${{ env.RUN_DIR }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: 22
-          envs: DOMAIN,APP_DIR
+          envs: RELEASE_ID,RUN_DIR
           script: |
-            set -e
-            test -f "$APP_DIR/incoming/index.html"
-            rsync -a --delete "$APP_DIR/incoming/" "$APP_DIR/html/"
-            rm -rf "$APP_DIR/incoming"
-            chown -R www-data:www-data "$APP_DIR/html"
-            nginx -t
-            systemctl reload nginx
-
-            # Issue an HTTPS certificate once (non-fatal: DNS is behind Cloudflare).
-            if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
-              certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos \
-                --register-unsafely-without-email --redirect || echo "certbot skipped"
-            fi
+            cd "$RUN_DIR" && tar -xzf muhajim-release.tar.gz \
+              && bash deploy/deploy.sh "$RELEASE_ID"
+            status=$?
+            rm -rf "$RUN_DIR"
+            exit $status
