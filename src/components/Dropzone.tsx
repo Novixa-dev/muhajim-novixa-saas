@@ -115,7 +115,7 @@ export const Dropzone: React.FC<DropzoneProps> = ({ onFilesSelected, t }) => {
             </div>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-950/60 border border-cyan-800/50 text-[11px] font-mono text-cyan-300">
               <Layers className="w-3.5 h-3.5" />
-              <span>دعم السحب الجماعي (Batch)</span>
+              <span>{t.batchDropHint}</span>
             </div>
           </div>
 
@@ -130,7 +130,7 @@ export const Dropzone: React.FC<DropzoneProps> = ({ onFilesSelected, t }) => {
             <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700/50">PDF</span>
             <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700/50">BMP</span>
             <span className="px-2 py-0.5 rounded bg-violet-950/80 border border-violet-700/60 text-violet-300 font-bold">
-              ✨ استوديو التوضيح
+              {t.clarityStudioPill}
             </span>
           </div>
 

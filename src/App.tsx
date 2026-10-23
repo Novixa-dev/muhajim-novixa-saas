@@ -1,18 +1,25 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Header } from './components/Header';
 import { Dropzone } from './components/Dropzone';
 import { ControlsPanel, ResizeOptions } from './components/ControlsPanel';
 import { ResultPreview, ProcessedItem } from './components/ResultPreview';
-import { SeoSection } from './components/SeoSection';
 import { Footer } from './components/Footer';
 import { AdBanner } from './components/AdBanner';
-import { InfoModal, ModalType } from './components/InfoModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { DEFAULT_LANGUAGE, Language } from './i18n/languages';
 import { getTranslation } from './i18n/translations';
 import { detectInitialLanguage, persistLanguage } from './lib/language';
 import { defaultFormatForFile, isSvgFile } from './lib/formats';
 import { WorkerInputMessage, WorkerOutputMessage } from './workers/image.worker';
 import { AlertCircle, X, Loader2 } from 'lucide-react';
+
+const SeoSection = lazy(() =>
+  import('./components/SeoSection').then((m) => ({ default: m.SeoSection }))
+);
+const InfoModal = lazy(() =>
+  import('./components/InfoModal').then((m) => ({ default: m.InfoModal }))
+);
+type ModalType = 'privacy' | 'terms' | 'security' | null;
 
 export function App() {
   const [currentLang, setCurrentLang] = useState<Language>(() =>
@@ -45,6 +52,19 @@ export function App() {
 
   const t = getTranslation(currentLang.code);
 
+  // Track object URLs created for results so they can always be revoked.
+  const createdUrls = useRef<Set<string>>(new Set());
+
+  const trackUrl = (url: string) => {
+    createdUrls.current.add(url);
+    return url;
+  };
+
+  const revokeAllUrls = () => {
+    createdUrls.current.forEach((url) => URL.revokeObjectURL(url));
+    createdUrls.current.clear();
+  };
+
   // Initialize Web Worker
   useEffect(() => {
     workerRef.current = new Worker(
@@ -63,6 +83,15 @@ export function App() {
 
     return () => {
       workerRef.current?.terminate();
+    };
+  }, []);
+
+  // Revoke any outstanding object URLs when the app unmounts.
+  useEffect(() => {
+    const urls = createdUrls.current;
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url));
+      urls.clear();
     };
   }, []);
 
@@ -87,6 +116,7 @@ export function App() {
     setErrorMessage(null);
     setSelectedFiles(files);
     setProcessedItems(null);
+    revokeAllUrls();
 
     // Read first file dimensions for initial control defaults
     const firstFile = files[0];
@@ -116,7 +146,7 @@ export function App() {
     };
 
     img.onerror = () => {
-      setErrorMessage(t.loadErrorText || 'Failed to load image file. Please ensure it is a valid format.');
+      setErrorMessage(t.loadErrorText);
       URL.revokeObjectURL(objectUrl);
     };
 
@@ -200,7 +230,7 @@ export function App() {
 
         pendingRequests.current.set(msgId, (out: WorkerOutputMessage) => {
           if (out.success && out.blob) {
-            const dataUrl = URL.createObjectURL(out.blob);
+            const dataUrl = trackUrl(URL.createObjectURL(out.blob));
             resolve({
               originalFile: file,
               originalWidth: fileW,
@@ -227,7 +257,8 @@ export function App() {
     });
   };
 
-  // Process all selected images
+  // Process all selected images with a small concurrency window so large
+  // batches stay responsive and individual failures don't abort the whole run.
   const handleProcessImages = async () => {
     if (selectedFiles.length === 0 || !workerRef.current) return;
 
@@ -236,27 +267,46 @@ export function App() {
     setBatchProgress({ current: 0, total: selectedFiles.length });
 
     const results: ProcessedItem[] = [];
+    const failures: string[] = [];
+    let completed = 0;
+    let cursor = 0;
+    const concurrency = 2;
+
+    const runWorker = async () => {
+      while (cursor < selectedFiles.length) {
+        const index = cursor++;
+        let file = selectedFiles[index];
+        try {
+          if (isSvgFile(file)) {
+            const pngBlob = await rasterizeSvg(file);
+            file = new File([pngBlob], file.name.replace(/\.svg$/i, '.png'), {
+              type: 'image/png',
+            });
+          }
+          const item = await processOneFile(file);
+          results.push(item);
+        } catch (err) {
+          failures.push(`${selectedFiles[index].name}: ${(err as Error).message}`);
+        } finally {
+          completed++;
+          setBatchProgress({ current: completed, total: selectedFiles.length });
+        }
+      }
+    };
 
     try {
-      for (let i = 0; i < selectedFiles.length; i++) {
-        setBatchProgress({ current: i + 1, total: selectedFiles.length });
-        let file = selectedFiles[i];
+      await Promise.all(
+        Array.from({ length: Math.min(concurrency, selectedFiles.length) }, () => runWorker())
+      );
 
-        // Rasterize SVG files to PNG so the worker can process them
-        if (isSvgFile(file)) {
-          const pngBlob = await rasterizeSvg(file);
-          file = new File([pngBlob], file.name.replace(/\.svg$/i, '.png'), {
-            type: 'image/png',
-          });
-        }
-
-        const item = await processOneFile(file);
-        results.push(item);
+      if (results.length > 0) {
+        setProcessedItems(results);
       }
-
-      setProcessedItems(results);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Error occurred while processing images');
+      if (failures.length > 0) {
+        setErrorMessage(`${t.batchPartialWarning} ${failures.join(' • ')}`);
+      }
+    } catch (err) {
+      setErrorMessage((err as Error).message || 'Error occurred while processing images');
     } finally {
       setIsProcessing(false);
       setBatchProgress(null);
@@ -264,9 +314,7 @@ export function App() {
   };
 
   const handleReset = () => {
-    if (processedItems) {
-      processedItems.forEach((item) => URL.revokeObjectURL(item.dataUrl));
-    }
+    revokeAllUrls();
     setSelectedFiles([]);
     setProcessedItems(null);
     setErrorMessage(null);
@@ -275,7 +323,13 @@ export function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 font-sans">
-      
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-xl focus:bg-cyan-500 focus:text-slate-950 focus:font-bold focus:text-sm"
+      >
+        {t.tagline}
+      </a>
+
       {/* Top Header Navigation */}
       <Header
         currentLang={currentLang}
@@ -284,12 +338,12 @@ export function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
+      <main id="main-content" className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
         
         {/* Hero Section */}
         <div className="text-center space-y-3 max-w-3xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-950/80 border border-cyan-800/60 text-cyan-400 text-xs font-semibold">
-            <span>✨ 100% In-Browser In-Memory Engine ($0 Compute)</span>
+            <span>{t.heroBadge}</span>
           </div>
           <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-slate-100 leading-tight">
             {t.tagline}
@@ -301,16 +355,17 @@ export function App() {
 
         {/* In-App Error Notification Banner */}
         {errorMessage && (
-          <div className="p-4 rounded-2xl bg-rose-950/60 border border-rose-800/80 text-rose-300 text-sm flex items-center justify-between shadow-lg">
+          <div className="p-4 rounded-2xl bg-rose-950/60 border border-rose-800/80 text-rose-300 text-sm flex items-center justify-between shadow-lg" role="alert">
             <div className="flex items-center gap-2.5">
               <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
               <span>{errorMessage}</span>
             </div>
             <button
               onClick={() => setErrorMessage(null)}
+              aria-label={t.closeBannerLabel}
               className="text-rose-400 hover:text-rose-200 p-1"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         )}
@@ -334,10 +389,10 @@ export function App() {
                   <div className="text-sm font-bold text-slate-200 truncate max-w-xs sm:max-w-md">
                     {selectedFiles.length === 1
                       ? selectedFiles[0].name
-                      : (t.selectedCountText || 'تم اختيار {count} صور للمعالجة الجماعية').replace('{count}', String(selectedFiles.length))}
+                      : t.selectedCountText.replace('{count}', String(selectedFiles.length))}
                   </div>
                   <div className="text-xs font-mono text-slate-400">
-                    {(selectedFiles.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(2)} MB {t.totalLabel || 'إجمالي'} • {originalWidth} × {originalHeight} px
+                    {(selectedFiles.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(2)} MB {t.totalLabel} • {originalWidth} × {originalHeight} px
                   </div>
                 </div>
               </div>
@@ -346,7 +401,7 @@ export function App() {
                 onClick={handleReset}
                 className="text-xs text-rose-400 hover:text-rose-300 px-3 py-1.5 rounded-lg bg-rose-950/40 border border-rose-800/40 font-semibold"
               >
-                {t.changeImagesBtn || 'تغيير الصور'}
+                {t.changeImagesBtn}
               </button>
             </div>
 
@@ -356,7 +411,7 @@ export function App() {
                 <div className="flex justify-between text-xs font-bold text-cyan-300">
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                    <span>{t.batchProcessingText || 'جاري معالجة الصور محلياً داخل المتصفح...'}</span>
+                    <span>{t.batchProcessingText}</span>
                   </span>
                   <span className="font-mono">
                     {batchProgress.current} / {batchProgress.total}
@@ -398,18 +453,26 @@ export function App() {
 
         {/* In-feed Ad Banner (Between processing/result and SEO) */}
         <div className="pt-2">
-          <AdBanner slotType="in-feed" />
+          <AdBanner slotType="in-feed" t={t} />
         </div>
 
-        {/* Programmatic SEO & Format Guide Section with FAQ */}
-        <SeoSection t={t} />
+        {/* Programmatic SEO & Format Guide Section with FAQ (lazy) */}
+        <ErrorBoundary
+          fallbackTitle={t.appName}
+          fallbackMessage={t.loadErrorText}
+          reloadLabel={t.resetBtn}
+        >
+          <Suspense fallback={<div className="h-32 rounded-3xl bg-slate-900/40 animate-pulse" />}>
+            <SeoSection t={t} />
+          </Suspense>
+        </ErrorBoundary>
 
       </main>
 
       {/* Sticky Bottom Ad Unit (Core Web Vitals Optimized) */}
       <div className="sticky bottom-0 z-40 bg-slate-950/90 backdrop-blur-md border-t border-slate-800/80 p-2.5 text-center">
         <div className="max-w-4xl mx-auto">
-          <AdBanner slotType="bottom-sticky" />
+          <AdBanner slotType="bottom-sticky" t={t} />
         </div>
       </div>
 
@@ -421,11 +484,20 @@ export function App() {
         t={t}
       />
 
-      {/* Legal & Trust Info Modals */}
-      <InfoModal
-        type={activeModal}
-        onClose={() => setActiveModal(null)}
-      />
+      {/* Legal & Trust Info Modals (lazy) */}
+      <ErrorBoundary
+        fallbackTitle={t.appName}
+        fallbackMessage={t.loadErrorText}
+        reloadLabel={t.closeModalLabel}
+      >
+        <Suspense fallback={null}>
+          <InfoModal
+            type={activeModal}
+            onClose={() => setActiveModal(null)}
+            t={t}
+          />
+        </Suspense>
+      </ErrorBoundary>
 
     </div>
   );

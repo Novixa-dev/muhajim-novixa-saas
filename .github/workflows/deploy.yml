@@ -19,7 +19,29 @@ env:
   RUN_DIR: /tmp/muhajim-release-${{ github.run_id }}
 
 jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
   deploy:
+    needs: quality
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

@@ -25,7 +25,7 @@ export const Footer: React.FC<FooterProps> = ({ currentLang, onSelectLang, onOpe
           </div>
           
           <div className="text-xs text-slate-400 font-mono">
-            <span>Powered by </span>
+            <span>{t.poweredBy} </span>
             <a
               href="https://novixa-cyan.vercel.app/ar"
               target="_blank"
@@ -40,7 +40,7 @@ export const Footer: React.FC<FooterProps> = ({ currentLang, onSelectLang, onOpe
         {/* 20-Language Link Matrix for SEO Crawlers */}
         <div className="pt-6 border-t border-slate-800/60">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-            Supported Global Languages (20 Most Spoken)
+            {t.languagesHeading}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2 text-xs">
             {LANGUAGES.map((lang) => (
@@ -68,21 +68,21 @@ export const Footer: React.FC<FooterProps> = ({ currentLang, onSelectLang, onOpe
               onClick={() => onOpenModal('privacy')}
               className="hover:text-cyan-400 transition-colors cursor-pointer"
             >
-              Privacy Policy
+              {t.privacyPolicy}
             </button>
             <span>•</span>
             <button
               onClick={() => onOpenModal('terms')}
               className="hover:text-cyan-400 transition-colors cursor-pointer"
             >
-              Terms of Service
+              {t.termsOfService}
             </button>
             <span>•</span>
             <button
               onClick={() => onOpenModal('security')}
               className="hover:text-cyan-400 transition-colors cursor-pointer"
             >
-              Security Whitepaper
+              {t.securityWhitepaper}
             </button>
           </div>
         </div>

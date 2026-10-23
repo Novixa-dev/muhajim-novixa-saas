@@ -21,6 +21,12 @@ export interface WorkerInputMessage {
   denoise?: boolean;
 }
 
+export type WorkerErrorCode =
+  | 'DECODE_FAILED'
+  | 'CONTEXT_UNAVAILABLE'
+  | 'ENCODE_FAILED'
+  | 'UNKNOWN';
+
 export interface WorkerOutputMessage {
   id: string;
   success: boolean;
@@ -31,13 +37,23 @@ export interface WorkerOutputMessage {
   width: number;
   height: number;
   error?: string;
+  errorCode?: WorkerErrorCode;
+}
+
+interface WorkerError extends Error {
+  code: WorkerErrorCode;
+}
+
+function makeWorkerError(code: WorkerErrorCode, message: string): WorkerError {
+  const err = new Error(message) as WorkerError;
+  err.code = code;
+  return err;
 }
 
 /**
  * High-performance 3x3 unsharp-mask style sharpening applied in-place on canvas pixels.
  * Boosts center pixel and subtracts orthogonal neighbors to crispen edges and text.
- */
-function applySharpen(
+ */function applySharpen(
   ctx: OffscreenCanvasRenderingContext2D,
   canvas: OffscreenCanvas,
   strength: number
@@ -505,6 +521,51 @@ async function canvasToBlob(
   return canvas.convertToBlob({ type: format, quality });
 }
 
+/**
+ * Draws `source` into `ctx` at (dx, dy, dW, dH), progressively halving the
+ * bitmap first when downscaling by a large factor. Browsers only supersample
+ * within a limited ratio (<~2-3x); halving in steps avoids the aliasing and
+ * over-softening that a single large downscale produces.
+ */
+function drawScaled(
+  ctx: OffscreenCanvasRenderingContext2D,
+  source: ImageBitmap,
+  dx: number,
+  dy: number,
+  dW: number,
+  dH: number
+): void {
+  const srcW = source.width;
+  const srcH = source.height;
+  const scale = Math.min(dW / srcW, dH / srcH);
+
+  if (scale < 0.5) {
+    // Halve the bitmap until within ~2x of the target, then do the final draw.
+    let curW = srcW;
+    let curH = srcH;
+    let step: ImageBitmap | OffscreenCanvas = source;
+
+    while (scale < 0.5 && curW > 2 && curH > 2) {
+      const nextW = Math.max(1, Math.round(curW / 2));
+      const nextH = Math.max(1, Math.round(curH / 2));
+      const stepCanvas = new OffscreenCanvas(nextW, nextH);
+      const stepCtx = stepCanvas.getContext('2d');
+      if (!stepCtx) break;
+      stepCtx.imageSmoothingEnabled = true;
+      stepCtx.imageSmoothingQuality = 'high';
+      stepCtx.drawImage(step as CanvasImageSource, 0, 0, nextW, nextH);
+      step = stepCanvas;
+      curW = nextW;
+      curH = nextH;
+    }
+
+    ctx.drawImage(step as CanvasImageSource, 0, 0, curW, curH, dx, dy, dW, dH);
+    return;
+  }
+
+  ctx.drawImage(source, 0, 0, srcW, srcH, dx, dy, dW, dH);
+}
+
 self.onmessage = async (e: MessageEvent<WorkerInputMessage>) => {
   const {
     id,
@@ -534,7 +595,11 @@ self.onmessage = async (e: MessageEvent<WorkerInputMessage>) => {
         imageOrientation: 'from-image',
       });
     } catch {
-      imageBitmap = await createImageBitmap(file);
+      try {
+        imageBitmap = await createImageBitmap(file);
+      } catch {
+        throw makeWorkerError('DECODE_FAILED', 'Could not decode the image file');
+      }
     }
 
     const canvas = new OffscreenCanvas(targetWidth, targetHeight);
@@ -547,7 +612,8 @@ self.onmessage = async (e: MessageEvent<WorkerInputMessage>) => {
     const ctx = canvas.getContext('2d', { alpha: hasAlpha });
 
     if (!ctx) {
-      throw new Error(
+      throw makeWorkerError(
+        'CONTEXT_UNAVAILABLE',
         'Failed to obtain 2D rendering context for OffscreenCanvas'
       );
     }
@@ -575,17 +641,17 @@ self.onmessage = async (e: MessageEvent<WorkerInputMessage>) => {
       const renderH = srcH * scale;
       const offsetX = (targetWidth - renderW) / 2;
       const offsetY = (targetHeight - renderH) / 2;
-      ctx.drawImage(imageBitmap, offsetX, offsetY, renderW, renderH);
+      drawScaled(ctx, imageBitmap, offsetX, offsetY, renderW, renderH);
     } else if (fitMode === 'contain') {
       const scale = Math.min(targetWidth / srcW, targetHeight / srcH);
       const renderW = srcW * scale;
       const renderH = srcH * scale;
       const offsetX = (targetWidth - renderW) / 2;
       const offsetY = (targetHeight - renderH) / 2;
-      ctx.drawImage(imageBitmap, offsetX, offsetY, renderW, renderH);
+      drawScaled(ctx, imageBitmap, offsetX, offsetY, renderW, renderH);
     } else {
       // Direct stretch
-      ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
+      drawScaled(ctx, imageBitmap, 0, 0, targetWidth, targetHeight);
     }
 
     imageBitmap.close();
@@ -602,14 +668,19 @@ self.onmessage = async (e: MessageEvent<WorkerInputMessage>) => {
     }
 
     let currentQuality = quality;
-    let blob = await canvasToBlob(
-      canvas,
-      ctx,
-      format,
-      currentQuality,
-      targetWidth,
-      targetHeight
-    );
+    let blob: Blob;
+    try {
+      blob = await canvasToBlob(
+        canvas,
+        ctx,
+        format,
+        currentQuality,
+        targetWidth,
+        targetHeight
+      );
+    } catch {
+      throw makeWorkerError('ENCODE_FAILED', `Could not encode as ${format}`);
+    }
 
     // Intelligent iterative compression if target max file size is set
     const isLossy =
@@ -619,7 +690,7 @@ self.onmessage = async (e: MessageEvent<WorkerInputMessage>) => {
       format === 'application/pdf';
 
     if (maxSizeKB && blob.size > maxSizeKB * 1024 && isLossy) {
-      let low = 0.1;
+      const low = 0.1;
       let high = currentQuality;
       for (let step = 0; step < 6 && blob.size > maxSizeKB * 1024; step++) {
         currentQuality = Math.max(0.1, (low + high) / 2);
@@ -651,7 +722,8 @@ self.onmessage = async (e: MessageEvent<WorkerInputMessage>) => {
       width: targetWidth,
       height: targetHeight,
     } as WorkerOutputMessage);
-  } catch (err: any) {
+  } catch (err) {
+    const code = (err as WorkerError)?.code ?? 'UNKNOWN';
     self.postMessage({
       id,
       success: false,
@@ -659,7 +731,8 @@ self.onmessage = async (e: MessageEvent<WorkerInputMessage>) => {
       newSize: 0,
       width: 0,
       height: 0,
-      error: err.message || 'Unknown processing error',
+      error: err instanceof Error ? err.message : 'Unknown processing error',
+      errorCode: code,
     } as WorkerOutputMessage);
   }
 };

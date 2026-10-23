@@ -1,4 +1,5 @@
 import { LANGUAGES, Language, DEFAULT_LANGUAGE } from '../i18n/languages';
+import { RELATED_FALLBACK, TRANSLATED_LANGUAGES } from '../i18n/translations';
 
 const STORAGE_KEY = 'muhajim.lang';
 
@@ -11,6 +12,25 @@ export function matchLanguage(tag: string | null | undefined): Language | null {
   if (!tag) return null;
   const primary = tag.split('-')[0].toLowerCase();
   return LANGUAGES.find((l) => l.code === primary) || null;
+}
+
+/**
+ * Resolve a language *with a native translation pack* for an incoming tag.
+ * For languages we list in the UI but have not translated yet (for example
+ * Portuguese or Italian), prefer a closely related translated language so the
+ * user sees real translated copy rather than English. Returns `null` when no
+ * sensible match exists, letting the caller fall back to the default.
+ */
+export function matchTranslatedLanguage(
+  tag: string | null | undefined
+): Language | null {
+  const direct = matchLanguage(tag);
+  if (!direct) return null;
+  if ((TRANSLATED_LANGUAGES as readonly string[]).includes(direct.code)) {
+    return direct;
+  }
+  const relatedCode = RELATED_FALLBACK[direct.code];
+  return matchLanguage(relatedCode);
 }
 
 /**
@@ -39,7 +59,7 @@ export function detectInitialLanguage(search: string): Language {
       navigator.language,
     ];
     for (const candidate of candidates) {
-      const match = matchLanguage(candidate);
+      const match = matchTranslatedLanguage(candidate);
       if (match) return match;
     }
   }

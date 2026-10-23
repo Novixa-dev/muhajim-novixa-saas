@@ -1,19 +1,21 @@
 import React, { useEffect, useRef } from 'react';
 import { ADS_CONFIG } from '../config/ads.config';
+import { TranslationKeys } from '../i18n/translations';
 import { ExternalLink, Sparkles } from 'lucide-react';
 
 interface AdBannerProps {
   slotType: 'bottom-sticky' | 'in-feed';
   className?: string;
+  t: TranslationKeys;
 }
 
 declare global {
   interface Window {
-    adsbygoogle?: any[];
+    adsbygoogle?: unknown[];
   }
 }
 
-export const AdBanner: React.FC<AdBannerProps> = ({ slotType, className = '' }) => {
+export const AdBanner: React.FC<AdBannerProps> = ({ slotType, className = '', t }) => {
   const adRef = useRef<HTMLModElement | null>(null);
 
   useEffect(() => {
@@ -34,7 +36,7 @@ export const AdBanner: React.FC<AdBannerProps> = ({ slotType, className = '' }) 
 
     return (
       <div className={`w-full overflow-hidden text-center bg-slate-900/60 border border-slate-800/80 rounded-2xl min-h-[90px] flex flex-col items-center justify-center ${className}`}>
-        <span className="text-[10px] uppercase font-mono text-slate-600 mb-1">Sponsored Advertisement</span>
+        <span className="text-[10px] uppercase font-mono text-slate-600 mb-1">{t.sponsoredLabel}</span>
         <ins
           ref={adRef}
           className="adsbygoogle"

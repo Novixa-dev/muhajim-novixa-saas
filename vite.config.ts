@@ -1,17 +1,19 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-import path from 'path'
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import path from 'path';
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
+  resolve: { alias: { '@': path.resolve(__dirname, './src') } },
+  worker: { format: 'es' },
+  define: {
+    __APP_VERSION__: JSON.stringify(
+      process.env.npm_package_version ?? '1.1.0'
+    ),
   },
-  worker: {
-    format: 'es',
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
   },
-})
+});

@@ -36,7 +36,7 @@ export const Header: React.FC<HeaderProps> = ({ currentLang, onSelectLang, t }) 
                 {t.appName}
               </h1>
               <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800/50">
-                v1.0
+                v{__APP_VERSION__}
               </span>
             </div>
             <p className="text-xs text-slate-400 font-medium hidden sm:block">
@@ -58,8 +58,10 @@ export const Header: React.FC<HeaderProps> = ({ currentLang, onSelectLang, t }) 
           <div className="relative">
             <button
               onClick={() => setIsLangOpen(!isLangOpen)}
+              aria-label={t.selectLanguageLabel}
+              aria-expanded={isLangOpen}
+              aria-haspopup="listbox"
               className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-sm font-semibold text-slate-200 transition-all shadow-sm"
-              aria-label="Select Language"
             >
               <span className="text-base">{currentLang.flag}</span>
               <span className="hidden sm:inline">{currentLang.nativeName}</span>
@@ -73,18 +75,21 @@ export const Header: React.FC<HeaderProps> = ({ currentLang, onSelectLang, t }) 
                     <Globe className="w-4 h-4 absolute top-2.5 left-3 text-slate-400" />
                     <input
                       type="text"
-                      placeholder="Search 20 languages..."
+                      placeholder={t.langSearchPlaceholder.replace('{count}', String(LANGUAGES.length))}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
+                      aria-label={t.langSearchPlaceholder.replace('{count}', String(LANGUAGES.length))}
                       className="w-full bg-slate-900 border border-slate-700/80 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
                     />
                   </div>
                 </div>
 
-                <div className="max-h-64 overflow-y-auto space-y-1 custom-scrollbar">
+                <div className="max-h-64 overflow-y-auto space-y-1 custom-scrollbar" role="listbox" aria-label={t.selectLanguageLabel}>
                   {filteredLanguages.map((lang) => (
                     <button
                       key={lang.code}
+                      role="option"
+                      aria-selected={currentLang.code === lang.code}
                       onClick={() => {
                         onSelectLang(lang);
                         setIsLangOpen(false);

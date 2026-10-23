@@ -1,0 +1,22 @@
+{
+  "name": "مُحجِّم | Muhajim — Image Resizer & Enhancer",
+  "short_name": "Muhajim",
+  "description": "Fast, private, 100% in-browser image resizing, compression, format conversion and clarity enhancement — no uploads, no servers.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "lang": "ar",
+  "dir": "rtl",
+  "categories": ["photo", "utilities", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
